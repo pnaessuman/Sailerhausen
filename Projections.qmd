@@ -1,0 +1,802 @@
+---
+title: "Sailershausen B1-B2 Species Sensitivity Analysis"
+format: html
+server: shiny
+toc: true
+---
+
+```{r}
+#| label: Preparing the workspace
+#| context: setup
+#| echo: false
+#| message: false
+#| warning: false
+#| results: false
+source("External/Vs.R")
+library(VSLiteR)
+library(dplR) # for reading in dendro data
+library(ggplot2) # for plotting later
+library(tidyverse)
+library(DEoptim)
+library(shiny)
+library(bslib)
+library(DT)
+```
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+#| context: data
+#| results: false
+
+b1ac <- read.rwl("Data/b1ac.rwl")
+b1apl  <- read.rwl("Data/b1apl.rwl")
+b1aps <- read.rwl("Data/b1aps.rwl")
+b1fs <- read.rwl("Data/b1fs.rwl")
+b1pa <- read.rwl("Data/b1pa.rwl")
+b1qp <- read.rwl("Data/b1qp.rwl")
+climate_b1 <- read_csv2("Data/B1_Sailerhausen.csv")
+cordex_b1 <- read_csv2("Data/cordex_b1_padded.csv")
+
+b2ac <- read.rwl("Data/b2ac.rwl")
+b2pa <- read.rwl("Data/b2pa.rwl")
+b2qp <- read.rwl("Data/b2qp.rwl")
+climate_b2 <- read_csv2("Data/B2_Sailerhausen.csv")
+cordex_b2 <- read_csv2("Data/cordex_b2_padded.csv")
+
+b1ac_d <- detrend(b1ac, method = "Spline", nyrs = 32)
+b1apl_d  <- detrend(b1apl, method = "Spline", nyrs = 32)
+b1aps_d <- detrend(b1aps, method = "Spline", nyrs = 32)
+b1fs_d <- detrend(b1fs, method = "Spline", nyrs = 32)
+b1pa_d <- detrend(b1pa, method = "Spline", nyrs = 32)
+b1qp_d <- detrend(b1qp, method = "Spline", nyrs = 32)
+b2ac_d <- detrend(b2ac, method = "Spline", nyrs = 32)
+b2pa_d <- detrend(b2pa, method = "Spline", nyrs = 32)
+b2qp_d <- detrend(b2qp, method = "Spline", nyrs = 32)
+
+b1ac_c <- chron(b1ac_d)
+b1apl_c <- chron(b1apl_d)
+b1aps_c <- chron(b1aps_d)
+b1fs_c <- chron(b1fs_d)
+b1pa_c <- chron(b1pa_d)
+b1qp_c <- chron(b1qp_d)
+b2ac_c <- chron(b2ac_d)
+b2pa_c <- chron(b2pa_d)
+b2qp_c <- chron(b2qp_d)
+```
+
+## B1ac - Acer campestre
+```{r}
+#| cache: true
+#| include: false
+input_historic_b1ac <- make_vsinput_historic(b1ac_c, climate_b1)
+
+b1ac_params <- vs_params(input_historic_b1ac$trw,
+                         input_historic_b1ac$tmean,
+                         input_historic_b1ac$prec,
+                         input_historic_b1ac$syear,
+                         input_historic_b1ac$eyear,
+                         .phi = 50) # approx. latitude in degrees
+```
+
+```{r}
+sliderInput("T1_b1ac", "T1 B1ac", min = 0,
+            max = 8.5, value = b1ac_params[1])
+sliderInput("T2_b1ac", "T2 B1ac", min = 9,
+            max = 20, value = b1ac_params[2])
+sliderInput("M1_b1ac", "M1 B1ac", min = 0.01,
+            max = 0.03, value = b1ac_params[3])
+sliderInput("M2_b1ac", "M2 B1ac", min = 0.1,
+            max = 0.5, value = b1ac_params[4])
+shiny::selectInput("rcp_b1ac", "Szenario",
+                   choices = c("RCP_85", "RCP_45", "RCP_26"))
+textOutput("b1ac_correlation")
+plotOutput("b1ac_sensitivity_rcp")
+```
+
+```{r}
+#| context: server
+output$b1ac_sensitivity_rcp <- renderPlot({
+  
+  b1ac_params2 <- c(
+    T1 = input$T1_b1ac,
+    T2 = input$T2_b1ac,
+    M1 = input$M1_b1ac,
+    M2 = input$M2_b1ac
+  )
+  
+  input_transient_b1ac <- make_vsinput_transient(climate_b1)
+  
+  b1ac_forward <- vs_run_forward(b1ac_params2,
+                                  input_transient_b1ac$tmean,
+                                  input_transient_b1ac$prec,
+                                  input_transient_b1ac$syear,
+                                  input_transient_b1ac$eyear,
+                                  .phi = 50)
+  
+  rcp_input_b1ac <- cordex_b1 %>% 
+    filter(year > 2021,
+           rcp == input$rcp_b1ac) %>% 
+    group_by(year, month) %>% 
+    summarise(
+      tmean = mean(tmean),
+      prec = mean(prec)
+    ) %>% 
+    ungroup() %>% 
+    make_vsinput_transient()
+  
+    b1ac_forward_rcp <- vs_run_forward(b1ac_params2,
+                                        rcp_input_b1ac$tmean,
+                                        rcp_input_b1ac$prec,
+                                        rcp_input_b1ac$syear,
+                                        rcp_input_b1ac$eyear,
+                                        .phi = 50)
+    
+    names(b1ac_forward_rcp) <- c("year", "projection")
+    ggplot(b1ac_forward_rcp, aes(year, projection)) +
+    geom_line(color = "blue", linewidth = 1) +
+    geom_smooth(color = "red", se = FALSE) +
+    labs(
+      title = "B1ac Future Projection",
+      subtitle = paste("RCP:", input$rcp_b1ac),
+      x = "Year",
+      y = "Ring Width Index"
+    ) +
+    theme_minimal()
+})
+
+```
+
+## B1apl
+```{r}
+#| cache: true
+#| include: false
+input_historic_b1apl <- make_vsinput_historic(b1apl_c, climate_b1)
+
+b1apl_params <- vs_params(input_historic_b1apl$trw,
+                         input_historic_b1apl$tmean,
+                         input_historic_b1apl$prec,
+                         input_historic_b1apl$syear,
+                         input_historic_b1apl$eyear,
+                         .phi = 50) # approx. latitude in degrees
+```
+
+
+```{r}
+sliderInput("T1_b1apl", "T1 B1apl", min = 0,
+            max = 8.5, value = b1apl_params[1])
+sliderInput("T2_b1apl", "T2 B1apl", min = 9,
+            max = 20, value = b1apl_params[2])
+sliderInput("M1_b1apl", "M1 B1apl", min = 0.01,
+            max = 0.03, value = b1apl_params[3])
+sliderInput("M2_b1apl", "M2 B1apl", min = 0.1,
+            max = 0.5, value = b1apl_params[4])
+shiny::selectInput("rcp_b1apl", "Szenario",
+                   choices = c("RCP_85", "RCP_45", "RCP_26"))
+textOutput("b1apl_correlation")
+plotOutput("b1apl_sensitivity_rcp")
+```
+
+```{r}
+#| context: server
+output$b1apl_sensitivity_rcp <- renderPlot({
+  
+  b1apl_params2 <- c(
+    T1 = input$T1_b1apl,
+    T2 = input$T2_b1apl,
+    M1 = input$M1_b1apl,
+    M2 = input$M2_b1apl
+  )
+  
+  input_transient_b1apl <- make_vsinput_transient(climate_b1)
+  
+  b1apl_forward <- vs_run_forward(b1apl_params2,
+                                  input_transient_b1apl$tmean,
+                                  input_transient_b1apl$prec,
+                                  input_transient_b1apl$syear,
+                                  input_transient_b1apl$eyear,
+                                  .phi = 50)
+  
+  rcp_input_b1apl <- cordex_b1 %>% 
+    filter(year > 2021,
+           rcp == input$rcp_b1apl) %>% 
+    group_by(year, month) %>% 
+    summarise(
+      tmean = mean(tmean),
+      prec = mean(prec)
+    ) %>% 
+    ungroup() %>% 
+    make_vsinput_transient()
+  
+    b1apl_forward_rcp <- vs_run_forward(b1apl_params2,
+                                        rcp_input_b1apl$tmean,
+                                        rcp_input_b1apl$prec,
+                                        rcp_input_b1apl$syear,
+                                        rcp_input_b1apl$eyear,
+                                        .phi = 50)
+    
+    names(b1apl_forward_rcp) <- c("year", "projection")
+    ggplot(b1apl_forward_rcp, aes(year, projection)) +
+    geom_line(color = "blue", linewidth = 1) +
+    geom_smooth(color = "red", se = FALSE) +
+    labs(
+      title = "B1apl Future Projection",
+      subtitle = paste("RCP:", input$rcp_b2apl),
+      x = "Year",
+      y = "Ring Width Index"
+    ) +
+    theme_minimal()
+})
+    
+```
+
+### B1aps
+
+```{r}
+#| cache: true
+#| include: false
+input_historic_b1aps <- make_vsinput_historic(b1aps_c, climate_b1)
+
+b1aps_params <- vs_params(input_historic_b1aps$trw,
+                         input_historic_b1aps$tmean,
+                         input_historic_b1aps$prec,
+                         input_historic_b1aps$syear,
+                         input_historic_b1aps$eyear,
+                         .phi = 50) # approx. latitude in degrees
+```
+
+```{r}
+sliderInput("T1_b1aps", "T1 B1aps", min = 0,
+            max = 8.5, value = b1aps_params[1])
+sliderInput("T2_b1aps", "T2 B1aps", min = 9,
+            max = 20, value = b1aps_params[2])
+sliderInput("M1_b1aps", "M1 B1aps", min = 0.01,
+            max = 0.03, value = b1aps_params[3])
+sliderInput("M2_b1aps", "M2 B1aps", min = 0.1,
+            max = 0.5, value = b1aps_params[4])
+shiny::selectInput("rcp_b1aps", "Szenario",
+                   choices = c("RCP_85", "RCP_45", "RCP_26"))
+textOutput("b1aps_correlation")
+plotOutput("b1aps_sensitivity_rcp")
+```
+
+```{r}
+#| context: server
+output$b1aps_sensitivity_rcp <- renderPlot({
+  
+  b1aps_params2 <- c(
+    T1 = input$T1_b1aps,
+    T2 = input$T2_b1aps,
+    M1 = input$M1_b1aps,
+    M2 = input$M2_b1aps
+  )
+  
+  input_transient_b1aps <- make_vsinput_transient(climate_b1)
+  
+  b1aps_forward <- vs_run_forward(b1aps_params2,
+                                  input_transient_b1aps$tmean,
+                                  input_transient_b1aps$prec,
+                                  input_transient_b1aps$syear,
+                                  input_transient_b1aps$eyear,
+                                  .phi = 50)
+  
+  rcp_input_b1aps <- cordex_b1 %>% 
+    filter(year > 2021,
+           rcp == input$rcp_b1aps) %>% 
+    group_by(year, month) %>% 
+    summarise(
+      tmean = mean(tmean),
+      prec = mean(prec)
+    ) %>% 
+    ungroup() %>% 
+    make_vsinput_transient()
+  
+    b1aps_forward_rcp <- vs_run_forward(b1aps_params2,
+                                        rcp_input_b1aps$tmean,
+                                        rcp_input_b1aps$prec,
+                                        rcp_input_b1aps$syear,
+                                        rcp_input_b1aps$eyear,
+                                        .phi = 50)
+    
+    names(b1aps_forward_rcp) <- c("year", "projection")
+     ggplot(b1aps_forward_rcp, aes(year, projection)) +
+    geom_line(color = "blue", linewidth = 1) +
+    geom_smooth(color = "red", se = FALSE) +
+    labs(
+      title = "B1aps Future Projection",
+      subtitle = paste("RCP:", input$rcp_b2aps),
+      x = "Year",
+      y = "Ring Width Index"
+    ) +
+    theme_minimal()
+})
+    
+   
+```
+
+## B1fs
+```{r}
+#| cache: true
+#| include: false
+input_historic_b1fs <- make_vsinput_historic(b1fs_c, climate_b1)
+
+b1fs_params <- vs_params(input_historic_b1fs$trw,
+                         input_historic_b1fs$tmean,
+                         input_historic_b1fs$prec,
+                         input_historic_b1fs$syear,
+                         input_historic_b1fs$eyear,
+                         .phi = 50) # approx. latitude in degrees
+```
+
+
+```{r}
+sliderInput("T1_b1fs", "T1 B1fs", min = 0,
+            max = 8.5, value = b1fs_params[1])
+sliderInput("T2_b1fs", "T2 B1fs", min = 9,
+            max = 20, value = b1fs_params[2])
+sliderInput("M1_b1fs", "M1 B1fs", min = 0.01,
+            max = 0.03, value = b1fs_params[3])
+sliderInput("M2_b1fs", "M2 B1fs", min = 0.1,
+            max = 0.5, value = b1fs_params[4])
+shiny::selectInput("rcp_b1fs", "Szenario",
+                   choices = c("RCP_85", "RCP_45", "RCP_26"))
+textOutput("b1fs_correlation")
+plotOutput("b1fs_sensitivity_rcp")
+```
+
+```{r}
+#| context: server
+output$b1fs_sensitivity_rcp <- renderPlot({
+  
+  b1fs_params2 <- c(
+    T1 = input$T1_b1fs,
+    T2 = input$T2_b1fs,
+    M1 = input$M1_b1fs,
+    M2 = input$M2_b1fs
+  )
+  
+  input_transient_b1fs <- make_vsinput_transient(climate_b1)
+  
+  b1fs_forward <- vs_run_forward(b1fs_params2,
+                                  input_transient_b1fs$tmean,
+                                  input_transient_b1fs$prec,
+                                  input_transient_b1fs$syear,
+                                  input_transient_b1fs$eyear,
+                                  .phi = 50)
+  
+  rcp_input_b1fs <- cordex_b1 %>% 
+    filter(year > 2021,
+           rcp == input$rcp_b1fs) %>% 
+    group_by(year, month) %>% 
+    summarise(
+      tmean = mean(tmean),
+      prec = mean(prec)
+    ) %>% 
+    ungroup() %>% 
+    make_vsinput_transient()
+  
+    b1fs_forward_rcp <- vs_run_forward(b1fs_params2,
+                                        rcp_input_b1fs$tmean,
+                                        rcp_input_b1fs$prec,
+                                        rcp_input_b1fs$syear,
+                                        rcp_input_b1fs$eyear,
+                                        .phi = 50)
+    
+    names(b1fs_forward_rcp) <- c("year", "projection")
+    ggplot(b1fs_forward_rcp, aes(year, projection)) +
+    geom_line(color = "blue", linewidth = 1) +
+    geom_smooth(color = "red", se = FALSE) +
+    labs(
+      title = "B1fs Future Projection",
+      subtitle = paste("RCP:", input$rcp_b2fs),
+      x = "Year",
+      y = "Ring Width Index"
+    ) +
+    theme_minimal()
+})
+
+```
+
+## B1pa
+
+```{r}
+#| cache: true
+#| include: false
+input_historic_b1pa <- make_vsinput_historic(b1pa_c, climate_b1)
+
+b1pa_params <- vs_params(input_historic_b1pa$trw,
+                         input_historic_b1pa$tmean,
+                         input_historic_b1pa$prec,
+                         input_historic_b1pa$syear,
+                         input_historic_b1pa$eyear,
+                         .phi = 50) # approx. latitude in degrees
+```
+
+```{r}
+sliderInput("T1_b1pa", "T1 B1pa", min = 0,
+            max = 8.5, value = b1pa_params[1])
+sliderInput("T2_b1pa", "T2 B1pa", min = 9,
+            max = 20, value = b1pa_params[2])
+sliderInput("M1_b1pa", "M1 B1pa", min = 0.01,
+            max = 0.03, value = b1pa_params[3])
+sliderInput("M2_b1pa", "M2 B1pa", min = 0.1,
+            max = 0.5, value = b1pa_params[4])
+shiny::selectInput("rcp_b1pa", "Szenario",
+                   choices = c("RCP_85", "RCP_45", "RCP_26"))
+textOutput("b1pa_correlation")
+plotOutput("b1pa_sensitivity_rcp")
+```
+
+```{r}
+#| context: server
+output$b1pa_sensitivity_rcp <- renderPlot({
+  
+  b1pa_params2 <- c(
+    T1 = input$T1_b1pa,
+    T2 = input$T2_b1pa,
+    M1 = input$M1_b1pa,
+    M2 = input$M2_b1pa
+  )
+  
+  input_transient_b1pa <- make_vsinput_transient(climate_b1)
+  
+  b1pa_forward <- vs_run_forward(b1pa_params2,
+                                  input_transient_b1pa$tmean,
+                                  input_transient_b1pa$prec,
+                                  input_transient_b1pa$syear,
+                                  input_transient_b1pa$eyear,
+                                  .phi = 50)
+  
+  rcp_input_b1pa <- cordex_b1 %>% 
+    filter(year > 2021,
+           rcp == input$rcp_b1pa) %>% 
+    group_by(year, month) %>% 
+    summarise(
+      tmean = mean(tmean),
+      prec = mean(prec)
+    ) %>% 
+    ungroup() %>% 
+    make_vsinput_transient()
+  
+    b1pa_forward_rcp <- vs_run_forward(b1pa_params2,
+                                        rcp_input_b1pa$tmean,
+                                        rcp_input_b1pa$prec,
+                                        rcp_input_b1pa$syear,
+                                        rcp_input_b1pa$eyear,
+                                        .phi = 50)
+    
+    names(b1pa_forward_rcp) <- c("year", "projection")
+    ggplot(b1pa_forward_rcp, aes(year, projection)) +
+    geom_line(color = "blue", linewidth = 1) +
+    geom_smooth(color = "red", se = FALSE) +
+    labs(
+      title = "B1pa Future Projection",
+      subtitle = paste("RCP:", input$rcp_b2pa),
+      x = "Year",
+      y = "Ring Width Index"
+    ) +
+    theme_minimal()
+})
+
+```
+
+## B1qp
+
+```{r}
+#| cache: true
+#| include: false
+input_historic_b1qp <- make_vsinput_historic(b1qp_c, climate_b1)
+
+b1qp_params <- vs_params(input_historic_b1qp$trw,
+                         input_historic_b1qp$tmean,
+                         input_historic_b1qp$prec,
+                         input_historic_b1qp$syear,
+                         input_historic_b1qp$eyear,
+                         .phi = 50) # approx. latitude in degrees
+```
+
+```{r}
+sliderInput("T1_b1qp", "T1 B1qp", min = 0,
+            max = 8.5, value = b1qp_params[1])
+sliderInput("T2_b1qp", "T2 B1qp", min = 9,
+            max = 20, value = b1qp_params[2])
+sliderInput("M1_b1qp", "M1 B1qp", min = 0.01,
+            max = 0.03, value = b1qp_params[3])
+sliderInput("M2_b1qp", "M2 B1qp", min = 0.1,
+            max = 0.5, value = b1qp_params[4])
+shiny::selectInput("rcp_b1qp", "Szenario",
+                   choices = c("RCP_85", "RCP_45", "RCP_26"))
+textOutput("b1qp_correlation")
+plotOutput("b1qp_sensitivity_rcp")
+```
+
+```{r}
+#| context: server
+output$b1qp_sensitivity_rcp <- renderPlot({
+  
+  b1qp_params2 <- c(
+    T1 = input$T1_b1qp,
+    T2 = input$T2_b1qp,
+    M1 = input$M1_b1qp,
+    M2 = input$M2_b1qp
+  )
+  
+  input_transient_b1qp <- make_vsinput_transient(climate_b1)
+  
+  b1qp_forward <- vs_run_forward(b1qp_params2,
+                                  input_transient_b1qp$tmean,
+                                  input_transient_b1qp$prec,
+                                  input_transient_b1qp$syear,
+                                  input_transient_b1qp$eyear,
+                                  .phi = 50)
+  
+  rcp_input_b1qp <- cordex_b1 %>% 
+    filter(year > 2021,
+           rcp == input$rcp_b1qp) %>% 
+    group_by(year, month) %>% 
+    summarise(
+      tmean = mean(tmean),
+      prec = mean(prec)
+    ) %>% 
+    ungroup() %>% 
+    make_vsinput_transient()
+  
+    b1qp_forward_rcp <- vs_run_forward(b1qp_params2,
+                                        rcp_input_b1qp$tmean,
+                                        rcp_input_b1qp$prec,
+                                        rcp_input_b1qp$syear,
+                                        rcp_input_b1qp$eyear,
+                                        .phi = 50)
+    
+    names(b1qp_forward_rcp) <- c("year", "projection")
+    ggplot(b1qp_forward_rcp, aes(year, projection)) +
+    geom_line(color = "blue", linewidth = 1) +
+    geom_smooth(color = "red", se = FALSE) +
+    labs(
+      title = "B1qp Future Projection",
+      subtitle = paste("RCP:", input$rcp_b2qp),
+      x = "Year",
+      y = "Ring Width Index"
+    ) +
+    theme_minimal()
+})
+```
+
+
+
+***********************************B2/Species***********************************
+# B2AC
+```{r}
+#| cache: true
+#| include: false
+input_historic_b2ac <- make_vsinput_historic(b2ac_c, climate_b2)
+b2ac_params <- vs_params(input_historic_b2ac$trw,
+                         input_historic_b2ac$tmean,
+                         input_historic_b2ac$prec,
+                         input_historic_b2ac$syear,
+                         input_historic_b2ac$eyear,
+                         .phi = 50) # approx. latitude in degrees
+```
+
+```{r}
+sliderInput("T1_b2ac", "T1 B2ac", min = 0,
+            max = 8.5, value = b2ac_params[1])
+sliderInput("T2_b2ac", "T2 B2ac", min = 9,
+            max = 20, value = b2ac_params[2])
+sliderInput("M1_b2ac", "M1 B2ac", min = 0.01,
+            max = 0.03, value = b2ac_params[3])
+sliderInput("M2_b2ac", "M2 B2ac", min = 0.1,
+            max = 0.5, value = b2ac_params[4])
+shiny::selectInput("rcp_b2ac", "Szenario",
+                   choices = c("RCP_85", "RCP_45", "RCP_26"))
+plotOutput("b2ac_sensitivity_rcp")
+textOutput("b2ac_correlation")
+```
+
+```{r}
+#| context: server
+output$b2ac_sensitivity_rcp <- renderPlot({
+  b2ac_params2 <- c(
+    T1 = input$T1_b2ac,
+    T2 = input$T2_b2ac,
+    M1 = input$M1_b2ac,
+    M2 = input$M2_b2ac
+  )
+  
+  input_transient_b2ac <- make_vsinput_transient(climate_b2)
+  b2ac_forward <- vs_run_forward(b2ac_params2,
+                                  input_transient_b2ac$tmean,
+                                  input_transient_b2ac$prec,
+                                  input_transient_b2ac$syear,
+                                  input_transient_b2ac$eyear,
+                                  .phi = 50)
+  
+  rcp_input <- cordex_b2 %>% 
+    filter(year > 2021,
+           rcp == input$rcp_b2ac) %>% 
+    group_by(year, month) %>% 
+    summarise(
+      tmean = mean(tmean),
+      prec = mean(prec)
+    ) %>% 
+    ungroup() %>% 
+    make_vsinput_transient()
+    b2ac_forward_rcp <- vs_run_forward(b2ac_params2,
+                                        rcp_input$tmean,
+                                        rcp_input$prec,
+                                        rcp_input$syear,
+                                        rcp_input$eyear,
+                                        .phi = 50)
+    
+    names(b2ac_forward_rcp) <- c("year", "projection")
+   ggplot(b2ac_forward_rcp, aes(year, projection)) +
+    geom_line(color = "blue", linewidth = 1) +
+    geom_smooth(color = "red", se = FALSE) +
+    labs(
+      title = "B2ac Future Projection",
+      subtitle = paste("RCP:", input$rcp_b2ac),
+      x = "Year",
+      y = "Ring Width Index"
+    ) +
+    theme_minimal()
+})
+```
+
+# B2PA
+```{r}
+#| cache: true
+#| include: false
+input_historic_b2pa <- make_vsinput_historic(b2pa_c, climate_b2)
+b2pa_params <- vs_params(input_historic_b2pa$trw,
+                         input_historic_b2pa$tmean,
+                         input_historic_b2pa$prec,
+                         input_historic_b2pa$syear,
+                         input_historic_b2pa$eyear,
+                         .phi = 50) # approx. latitude in degrees
+```
+
+```{r}
+sliderInput("T1_b2pa", "T1 B2pa", min = 0,
+            max = 8.5, value = b2pa_params[1])
+sliderInput("T2_b2pa", "T2 B2pa", min = 9,
+            max = 20, value = b2pa_params[2])
+sliderInput("M1_b2pa", "M1 B2pa", min = 0.01,
+            max = 0.03, value = b2pa_params[3])
+sliderInput("M2_b2pa", "M2 B2pa", min = 0.1,
+            max = 0.5, value = b2pa_params[4])
+shiny::selectInput("rcp_b2pa", "Szenario",
+                   choices = c("RCP_85", "RCP_45", "RCP_26"))
+plotOutput("b2pa_sensitivity_rcp")
+textOutput("b2pa_correlation")
+```
+
+```{r}
+#| context: server
+output$b2pa_sensitivity_rcp <- renderPlot({
+  b2pa_params2 <- c(
+    T1 = input$T1_b2pa,
+    T2 = input$T2_b2pa,
+    M1 = input$M1_b2pa,
+    M2 = input$M2_b2pa
+  )
+  
+  input_transient_b2pa <- make_vsinput_transient(climate_b2)
+  b2pa_forward <- vs_run_forward(b2pa_params2,
+                                  input_transient_b2pa$tmean,
+                                  input_transient_b2pa$prec,
+                                  input_transient_b2pa$syear,
+                                  input_transient_b2pa$eyear,
+                                  .phi = 50)
+  
+  rcp_input <- cordex_b2 %>% 
+    filter(year > 2021,
+           rcp == input$rcp_b2pa) %>% 
+    group_by(year, month) %>% 
+    summarise(
+      tmean = mean(tmean),
+      prec = mean(prec)
+    ) %>% 
+    ungroup() %>% 
+    make_vsinput_transient()
+  
+    b2pa_forward_rcp <- vs_run_forward(b2pa_params2,
+                                        rcp_input$tmean,
+                                        rcp_input$prec,
+                                        rcp_input$syear,
+                                        rcp_input$eyear,
+                                        .phi = 50)
+    
+    names(b2pa_forward_rcp) <- c("year", "projection")
+    ggplot(b2pa_forward_rcp, aes(year, projection)) +
+    geom_line(color = "blue", linewidth = 1) +
+    geom_smooth(color = "red", se = FALSE) +
+    labs(
+      title = "B2pa Future Projection",
+      subtitle = paste("RCP:", input$rcp_b2pa),
+      x = "Year",
+      y = "Ring Width Index"
+    ) +
+    theme_minimal()
+})
+```
+
+# B2qp
+```{r}
+#| cache: true
+#| include: false
+input_historic_b2qp <- make_vsinput_historic(b2qp_c, climate_b2)
+
+b2qp_params <- vs_params(input_historic_b2qp$trw,
+                         input_historic_b2qp$tmean,
+                         input_historic_b2qp$prec,
+                         input_historic_b2qp$syear,
+                         input_historic_b2qp$eyear,
+                         .phi = 50) # approx. latitude in degrees
+```
+
+```{r}
+sliderInput("T1_b2qp", "T1 B2qp", min = 0,
+            max = 8.5, value = b2qp_params[1])
+sliderInput("T2_b2qp", "T2 B2qp", min = 9,
+            max = 20, value = b2qp_params[2])
+sliderInput("M1_b2qp", "M1 B2qp", min = 0.01,
+            max = 0.03, value = b2qp_params[3])
+sliderInput("M2_b2qp", "M2 B2qp", min = 0.1,
+            max = 0.5, value = b2qp_params[4])
+shiny::selectInput("rcp_b2qp", "Szenario",
+                   choices = c("RCP_85", "RCP_45", "RCP_26"))
+plotOutput("b2qp_sensitivity_rcp")
+textOutput("b2qp_correlation")
+```
+
+```{r}
+#| context: server
+output$b2qp_sensitivity_rcp <- renderPlot({
+  b2qp_params2 <- c(
+    T1 = input$T1_b2qp,
+    T2 = input$T2_b2qp,
+    M1 = input$M1_b2qp,
+    M2 = input$M2_b2qp
+  )
+  
+  input_transient_b2qp <- make_vsinput_transient(climate_b2)
+  b2qp_forward <- vs_run_forward(b2qp_params2,
+                                  input_transient_b2qp$tmean,
+                                  input_transient_b2qp$prec,
+                                  input_transient_b2qp$syear,
+                                  input_transient_b2qp$eyear,
+                                  .phi = 50)
+  
+  rcp_input <- cordex_b2 %>% 
+    filter(year > 2021,
+           rcp == input$rcp_b2qp) %>% 
+    group_by(year, month) %>% 
+    summarise(
+      tmean = mean(tmean),
+      prec = mean(prec)
+    ) %>% 
+    ungroup() %>% 
+    make_vsinput_transient()
+  
+    b2qp_forward_rcp <- vs_run_forward(b2qp_params2,
+                                        rcp_input$tmean,
+                                        rcp_input$prec,
+                                        rcp_input$syear,
+                                        rcp_input$eyear,
+                                        .phi = 50)
+    
+    names(b2qp_forward_rcp) <- c("year", "projection")
+    ggplot(b2qp_forward_rcp, aes(year, projection)) +
+    geom_line(color = "blue", linewidth = 1) +
+    geom_smooth(color = "red", se = FALSE) +
+    labs(
+      title = "B2qp Future Projection",
+      subtitle = paste("RCP:", input$rcp_b2qp),
+      x = "Year",
+      y = "Ring Width Index"
+    ) +
+    theme_minimal()
+})
+```
+

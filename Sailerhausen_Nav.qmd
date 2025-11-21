@@ -1,0 +1,297 @@
+---
+title: "Sailershausen B1-B2 Species Sensitivity Analysis"
+format: html
+server: shiny
+toc: true
+---
+
+```{r}
+#| label: Preparing the workspace
+#| context: setup
+#| echo: false
+#| message: false
+#| warning: false
+#| results: false
+source("External/Vs.R")
+library(VSLiteR)
+library(dplR)
+library(ggplot2)
+library(tidyverse)
+library(DEoptim)
+library(shiny)
+library(bslib)
+library(DT)
+```
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+#| context: data
+#| results: false
+
+b1ac <- read.rwl("Data/b1ac.rwl")
+b1apl  <- read.rwl("Data/b1apl.rwl")
+b1aps <- read.rwl("Data/b1aps.rwl")
+b1fs <- read.rwl("Data/b1fs.rwl")
+b1pa <- read.rwl("Data/b1pa.rwl")
+b1qp <- read.rwl("Data/b1qp.rwl")
+climate_b1 <- read.csv2("Data/B1_Sailerhausen.csv")
+cordex_b1 <- read.csv2("Data/lfu_cordex_ensemble_monthly_b1.csv")
+b2ac <- read.rwl("Data/b2ac.rwl")
+b2pa <- read.rwl("Data/b2pa.rwl")
+b2qp <- read.rwl("Data/b2qp.rwl")
+climate_b2 <- read_csv2("Data/B2_Sailerhausen.csv")
+cordex_b2 <- read_csv2("Data/lfu_cordex_ensemble_monthly_b2.csv")
+
+b1ac_d <- detrend(b1ac, method = "Spline", nyrs = 32)
+b1apl_d  <- detrend(b1apl, method = "Spline", nyrs = 32)
+b1aps_d <- detrend(b1aps, method = "Spline", nyrs = 32)
+b1fs_d <- detrend(b1fs, method = "Spline", nyrs = 32)
+b1pa_d <- detrend(b1pa, method = "Spline", nyrs = 32)
+b1qp_d <- detrend(b1qp, method = "Spline", nyrs = 32)
+b2ac_d <- detrend(b2ac, method = "Spline", nyrs = 32)
+b2pa_d <- detrend(b2pa, method = "Spline", nyrs = 32)
+b2qp_d <- detrend(b2qp, method = "Spline", nyrs = 32)
+
+b1ac_c <- chron(b1ac_d)
+b1apl_c <- chron(b1apl_d)
+b1aps_c <- chron(b1aps_d)
+b1fs_c <- chron(b1fs_d)
+b1pa_c <- chron(b1pa_d)
+b1qp_c <- chron(b1qp_d)
+b2ac_c <- chron(b2ac_d)
+b2pa_c <- chron(b2pa_d)
+b2qp_c <- chron(b2qp_d)
+```
+
+```{r}
+#| cache: true
+#| include: false
+
+input_historic_b1ac <- make_vsinput_historic(b1ac_c, climate_b1)
+b1ac_params <- vs_params(input_historic_b1ac$trw, input_historic_b1ac$tmean, input_historic_b1ac$prec, input_historic_b1ac$syear, input_historic_b1ac$eyear, .phi = 50)
+
+input_historic_b1apl <- make_vsinput_historic(b1apl_c, climate_b1)
+b1apl_params <- vs_params(input_historic_b1apl$trw, input_historic_b1apl$tmean, input_historic_b1apl$prec, input_historic_b1apl$syear, input_historic_b1apl$eyear, .phi = 50)
+
+input_historic_b1aps <- make_vsinput_historic(b1aps_c, climate_b1)
+b1aps_params <- vs_params(input_historic_b1aps$trw, input_historic_b1aps$tmean, input_historic_b1aps$prec, input_historic_b1aps$syear, input_historic_b1aps$eyear, .phi = 50)
+
+input_historic_b1fs <- make_vsinput_historic(b1fs_c, climate_b1)
+b1fs_params <- vs_params(input_historic_b1fs$trw, input_historic_b1fs$tmean, input_historic_b1fs$prec, input_historic_b1fs$syear, input_historic_b1fs$eyear, .phi = 50)
+
+input_historic_b1pa <- make_vsinput_historic(b1pa_c, climate_b1)
+b1pa_params <- vs_params(input_historic_b1pa$trw, input_historic_b1pa$tmean, input_historic_b1pa$prec, input_historic_b1pa$syear, input_historic_b1pa$eyear, .phi = 50)
+
+input_historic_b1qp <- make_vsinput_historic(b1qp_c, climate_b1)
+b1qp_params <- vs_params(input_historic_b1qp$trw, input_historic_b1qp$tmean, input_historic_b1qp$prec, input_historic_b1qp$syear, input_historic_b1qp$eyear, .phi = 50)
+
+input_historic_b2ac <- make_vsinput_historic(b2ac_c, climate_b2)
+b2ac_params <- vs_params(input_historic_b2ac$trw, input_historic_b2ac$tmean, input_historic_b2ac$prec, input_historic_b2ac$syear, input_historic_b2ac$eyear, .phi = 50)
+
+input_historic_b2pa <- make_vsinput_historic(b2pa_c, climate_b2)
+b2pa_params <- vs_params(input_historic_b2pa$trw, input_historic_b2pa$tmean, input_historic_b2pa$prec, input_historic_b2pa$syear, input_historic_b2pa$eyear, .phi = 50)
+
+input_historic_b2qp <- make_vsinput_historic(b2qp_c, climate_b2)
+b2qp_params <- vs_params(input_historic_b2qp$trw, input_historic_b2qp$tmean, input_historic_b2qp$prec, input_historic_b2qp$syear, input_historic_b2qp$eyear, .phi = 50)
+```
+
+# Site B1 Species
+
+```{r}
+navset_tab(
+  nav_panel("B1ac - Acer campestre",
+    sliderInput("T1_b1ac", "T1 B1ac", min = 0, max = 8.5, value = b1ac_params[1]),
+    sliderInput("T2_b1ac", "T2 B1ac", min = 9, max = 20, value = b1ac_params[2]),
+    sliderInput("M1_b1ac", "M1 B1ac", min = 0.01, max = 0.03, value = b1ac_params[3]),
+    sliderInput("M2_b1ac", "M2 B1ac", min = 0.1, max = 0.5, value = b1ac_params[4]),
+    selectInput("rcp_b1ac", "Szenario", choices = c("RCP_85", "RCP_45", "RCP_26")),
+    selectInput("rcm_b1ac", "Regional climate ids", choices = c("CLMcom-CCLM4-8-17", "KNMI-RACMO22E","SMHI-RCA4", "CEC-WETTREG2018", "UHOH-WRF361H")),
+    plotOutput("b1ac_sensitivity_rcp"),
+    plotOutput("b1ac_sensitivity_rcm")
+  ),
+  nav_panel("B1apl - Acer platanoides",
+    sliderInput("T1_b1apl", "T1 B1apl", min = 0, max = 8.5, value = b1apl_params[1]),
+    sliderInput("T2_b1apl", "T2 B1apl", min = 9, max = 20, value = b1apl_params[2]),
+    sliderInput("M1_b1apl", "M1 B1apl", min = 0.01, max = 0.03, value = b1apl_params[3]),
+    sliderInput("M2_b1apl", "M2 B1apl", min = 0.1, max = 0.5, value = b1apl_params[4]),
+    selectInput("rcp_b1apl", "Szenario", choices = c("RCP_85", "RCP_45", "RCP_26")),
+    selectInput("rcm_b1apl", "Regional climate ids", choices = c("CLMcom-CCLM4-8-17", "KNMI-RACMO22E","SMHI-RCA4", "CEC-WETTREG2018", "UHOH-WRF361H")),
+    plotOutput("b1apl_sensitivity_rcp"),
+    plotOutput("b1apl_sensitivity_rcm")
+  ),
+  nav_panel("B1aps - Acer pseudoplatanus",
+    sliderInput("T1_b1aps", "T1 B1aps", min = 0, max = 8.5, value = b1aps_params[1]),
+    sliderInput("T2_b1aps", "T2 B1aps", min = 9, max = 20, value = b1aps_params[2]),
+    sliderInput("M1_b1aps", "M1 B1aps", min = 0.01, max = 0.03, value = b1aps_params[3]),
+    sliderInput("M2_b1aps", "M2 B1aps", min = 0.1, max = 0.5, value = b1aps_params[4]),
+    selectInput("rcp_b1aps", "Szenario", choices = c("RCP_85", "RCP_45", "RCP_26")),
+    selectInput("rcm_b1aps", "Regional climate ids", choices = c("CLMcom-CCLM4-8-17", "KNMI-RACMO22E","SMHI-RCA4", "CEC-WETTREG2018", "UHOH-WRF361H")),
+    plotOutput("b1aps_sensitivity_rcp"),
+    plotOutput("b1aps_sensitivity_rcm")
+  ),
+  nav_panel("B1fs - Fagus sylvatica",
+    sliderInput("T1_b1fs", "T1 B1fs", min = 0, max = 8.5, value = b1fs_params[1]),
+    sliderInput("T2_b1fs", "T2 B1fs", min = 9, max = 20, value = b1fs_params[2]),
+    sliderInput("M1_b1fs", "M1 B1fs", min = 0.01, max = 0.03, value = b1fs_params[3]),
+    sliderInput("M2_b1fs", "M2 B1fs", min = 0.1, max = 0.5, value = b1fs_params[4]),
+    selectInput("rcp_b1fs", "Szenario", choices = c("RCP_85", "RCP_45", "RCP_26")),
+    selectInput("rcm_b1fs", "Regional climate ids", choices = c("CLMcom-CCLM4-8-17", "KNMI-RACMO22E","SMHI-RCA4", "CEC-WETTREG2018", "UHOH-WRF361H")),
+    plotOutput("b1fs_sensitivity_rcp"),
+    plotOutput("b1fs_sensitivity_rcm")
+  ),
+  nav_panel("B1pa - Prunus avium",
+    sliderInput("T1_b1pa", "T1 B1pa", min = 0, max = 8.5, value = b1pa_params[1]),
+    sliderInput("T2_b1pa", "T2 B1pa", min = 9, max = 20, value = b1pa_params[2]),
+    sliderInput("M1_b1pa", "M1 B1pa", min = 0.01, max = 0.03, value = b1pa_params[3]),
+    sliderInput("M2_b1pa", "M2 B1pa", min = 0.1, max = 0.5, value = b1pa_params[4]),
+    selectInput("rcp_b1pa", "Szenario", choices = c("RCP_85", "RCP_45", "RCP_26")),
+    selectInput("rcm_b1pa", "Regional climate ids", choices = c("CLMcom-CCLM4-8-17", "KNMI-RACMO22E","SMHI-RCA4", "CEC-WETTREG2018", "UHOH-WRF361H")),
+    plotOutput("b1pa_sensitivity_rcp"),
+    plotOutput("b1pa_sensitivity_rcm")
+  ),
+  nav_panel("B1qp - Quercus petraea",
+    sliderInput("T1_b1qp", "T1 B1qp", min = 0, max = 8.5, value = b1qp_params[1]),
+    sliderInput("T2_b1qp", "T2 B1qp", min = 9, max = 20, value = b1qp_params[2]),
+    sliderInput("M1_b1qp", "M1 B1qp", min = 0.01, max = 0.03, value = b1qp_params[3]),
+    sliderInput("M2_b1qp", "M2 B1qp", min = 0.1, max = 0.5, value = b1qp_params[4]),
+    selectInput("rcp_b1qp", "Szenario", choices = c("RCP_85", "RCP_45", "RCP_26")),
+    selectInput("rcm_b1qp", "Regional climate ids", choices = c("CLMcom-CCLM4-8-17", "KNMI-RACMO22E","SMHI-RCA4", "CEC-WETTREG2018", "UHOH-WRF361H")),
+    plotOutput("b1qp_sensitivity_rcp"),
+    plotOutput("b1qp_sensitivity_rcm")
+  )
+)
+```
+
+# Site B2 Species
+
+```{r}
+navset_tab(
+  nav_panel("B2ac - Acer campestre",
+    sliderInput("T1_b2ac", "T1 B2ac", min = 0, max = 8.5, value = b2ac_params[1]),
+    sliderInput("T2_b2ac", "T2 B2ac", min = 9, max = 20, value = b2ac_params[2]),
+    sliderInput("M1_b2ac", "M1 B2ac", min = 0.01, max = 0.03, value = b2ac_params[3]),
+    sliderInput("M2_b2ac", "M2 B2ac", min = 0.1, max = 0.5, value = b2ac_params[4]),
+    selectInput("rcp_b2ac", "Szenario", choices = c("RCP_85", "RCP_45", "RCP_26")),
+    selectInput("gcm_b2ac", "Global climate ids", choices = c("ICHEC-EC-EARTH_r12i1p1","MIROC-MIROC5_r1i1p1", "MPI-M-MPI-ESM-LR_r1i1p1", "ICHEC-EC-EARTH_r1i1p1", "MOHC-HadGEM2-ES_r1i1p1")),
+    plotOutput("b2ac_sensitivity_rcp"),
+    plotOutput("b2ac_sensitivity_gcm")
+  ),
+  nav_panel("B2pa - Prunus avium",
+    sliderInput("T1_b2pa", "T1 B2pa", min = 0, max = 8.5, value = b2pa_params[1]),
+    sliderInput("T2_b2pa", "T2 B2pa", min = 9, max = 20, value = b2pa_params[2]),
+    sliderInput("M1_b2pa", "M1 B2pa", min = 0.01, max = 0.03, value = b2pa_params[3]),
+    sliderInput("M2_b2pa", "M2 B2pa", min = 0.1, max = 0.5, value = b2pa_params[4]),
+    selectInput("rcp_b2pa", "Szenario", choices = c("RCP_85", "RCP_45", "RCP_26")),
+    selectInput("gcm_b2pa", "Global climate ids", choices = c("ICHEC-EC-EARTH_r12i1p1","MIROC-MIROC5_r1i1p1", "MPI-M-MPI-ESM-LR_r1i1p1", "ICHEC-EC-EARTH_r1i1p1", "MOHC-HadGEM2-ES_r1i1p1")),
+    plotOutput("b2pa_sensitivity_rcp"),
+    plotOutput("b2pa_sensitivity_gcm")
+  ),
+  nav_panel("B2qp - Quercus petraea",
+    sliderInput("T1_b2qp", "T1 B2qp", min = 0, max = 8.5, value = b2qp_params[1]),
+    sliderInput("T2_b2qp", "T2 B2qp", min = 9, max = 20, value = b2qp_params[2]),
+    sliderInput("M1_b2qp", "M1 B2qp", min = 0.01, max = 0.03, value = b2qp_params[3]),
+    sliderInput("M2_b2qp", "M2 B2qp", min = 0.1, max = 0.5, value = b2qp_params[4]),
+    selectInput("rcp_b2qp", "Szenario", choices = c("RCP_85", "RCP_45", "RCP_26")),
+    selectInput("gcm_b2qp", "Global climate ids", choices = c("ICHEC-EC-EARTH_r12i1p1","MIROC-MIROC5_r1i1p1", "MPI-M-MPI-ESM-LR_r1i1p1", "ICHEC-EC-EARTH_r1i1p1", "MOHC-HadGEM2-ES_r1i1p1")),
+    plotOutput("b2qp_sensitivity_rcp"),
+    plotOutput("b2qp_sensitivity_gcm")
+  )
+)
+```
+
+# Summary Table
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+correlation_data <- read.csv2("Data/parameter sensitivity correlation.csv")
+DT::datatable(correlation_data, options = list(pageLength = 10, scrollX = TRUE, dom = 'Bfrtip'), caption = "Parameter Sensitivity Correlation Analysis", rownames = FALSE)
+```
+
+```{r}
+#| context: server
+
+# Helper function for B1 species
+make_b1_plot <- function(species_code, chron_data, params, rcp_val, rcm_val, plot_type) {
+  params2 <- c(T1=params[1], T2=params[2], M1=params[3], M2=params[4])
+  input_trans <- make_vsinput_transient(climate_b1)
+  forward <- vs_run_forward(params2, input_trans$tmean, input_trans$prec, input_trans$syear, input_trans$eyear, .phi=50)
+  
+  if(plot_type == "rcp") {
+    proj_input <- cordex_b1 %>% filter(year>2020, rcp==rcp_val) %>% group_by(year,month) %>% 
+      summarise(tmean=mean(temp), prec=mean(prec), .groups="drop") %>% make_vsinput_transient()
+  } else {
+    proj_input <- cordex_b1 %>% filter(year>2020, rcm==rcm_val) %>% group_by(year,month) %>% 
+      summarise(tmean=mean(temp), prec=mean(prec), .groups="drop") %>% make_vsinput_transient()
+  }
+  
+  forward_proj <- vs_run_forward(params2, proj_input$tmean, proj_input$prec, proj_input$syear, proj_input$eyear, .phi=50)
+  names(forward_proj) <- c("year","projection")
+  observed <- data.frame(year=as.numeric(rownames(chron_data)), observed=scale(chron_data$std))
+  combined <- merge(observed, forward)
+  combined$modelled <- scale(combined$trw)
+  combined$trw <- NULL
+  combined <- merge(combined, forward_proj, all=TRUE) %>% pivot_longer(-1, names_to="variant", values_to="rwi")
+  correlation <- cor(combined$rwi[combined$variant=="modelled"], combined$rwi[combined$variant=="observed"])
+  ggplot(combined, aes(year,rwi)) + geom_line(aes(colour=variant)) + 
+    labs(title=paste0("correlation = ",round(correlation,2))) + geom_smooth(aes(colour=variant), se=FALSE)
+}
+
+# Helper function for B2 species
+make_b2_plot <- function(species_code, chron_data, params, rcp_val, gcm_val, plot_type) {
+  params2 <- c(T1=params[1], T2=params[2], M1=params[3], M2=params[4])
+  input_trans <- make_vsinput_transient(climate_b2)
+  forward <- vs_run_forward(params2, input_trans$tmean, input_trans$prec, input_trans$syear, input_trans$eyear, .phi=50)
+  
+  if(plot_type == "rcp") {
+    proj_input <- cordex_b2 %>% filter(year>2020, rcp==rcp_val) %>% group_by(year,month) %>% 
+      summarise(tmean=mean(temp), prec=mean(prec), .groups="drop") %>% make_vsinput_transient()
+  } else {
+    proj_input <- cordex_b2 %>% filter(year>2020, gcm==gcm_val) %>% group_by(year,month) %>% 
+      summarise(tmean=mean(temp), prec=mean(prec), .groups="drop") %>% make_vsinput_transient()
+  }
+  
+  forward_proj <- vs_run_forward(params2, proj_input$tmean, proj_input$prec, proj_input$syear, proj_input$eyear, .phi=50)
+  names(forward_proj) <- c("year","projection")
+  observed <- data.frame(year=as.numeric(rownames(chron_data)), observed=scale(chron_data$std))
+  combined <- merge(observed, forward)
+  combined$modelled <- scale(combined$trw)
+  combined$trw <- NULL
+  combined <- merge(combined, forward_proj, all=TRUE) %>% pivot_longer(-1, names_to="variant", values_to="rwi")
+  correlation <- cor(combined$rwi[combined$variant=="modelled"], combined$rwi[combined$variant=="observed"])
+  ggplot(combined, aes(year,rwi)) + geom_line(aes(colour=variant)) + 
+    labs(title=paste0("correlation = ",round(correlation,2))) + geom_smooth(aes(colour=variant), se=FALSE)
+}
+
+# B1 outputs
+output$b1ac_sensitivity_rcp <- renderPlot({ make_b1_plot("b1ac", b1ac_c, c(input$T1_b1ac, input$T2_b1ac, input$M1_b1ac, input$M2_b1ac), input$rcp_b1ac, NULL, "rcp") })
+output$b1ac_sensitivity_rcm <- renderPlot({ make_b1_plot("b1ac", b1ac_c, c(input$T1_b1ac, input$T2_b1ac, input$M1_b1ac, input$M2_b1ac), NULL, input$rcm_b1ac, "rcm") })
+
+output$b1apl_sensitivity_rcp <- renderPlot({ make_b1_plot("b1apl", b1apl_c, c(input$T1_b1apl, input$T2_b1apl, input$M1_b1apl, input$M2_b1apl), input$rcp_b1apl, NULL, "rcp") })
+output$b1apl_sensitivity_rcm <- renderPlot({ make_b1_plot("b1apl", b1apl_c, c(input$T1_b1apl, input$T2_b1apl, input$M1_b1apl, input$M2_b1apl), NULL, input$rcm_b1apl, "rcm") })
+
+output$b1aps_sensitivity_rcp <- renderPlot({ make_b1_plot("b1aps", b1aps_c, c(input$T1_b1aps, input$T2_b1aps, input$M1_b1aps, input$M2_b1aps), input$rcp_b1aps, NULL, "rcp") })
+output$b1aps_sensitivity_rcm <- renderPlot({ make_b1_plot("b1aps", b1aps_c, c(input$T1_b1aps, input$T2_b1aps, input$M1_b1aps, input$M2_b1aps), NULL, input$rcm_b1aps, "rcm") })
+
+output$b1fs_sensitivity_rcp <- renderPlot({ make_b1_plot("b1fs", b1fs_c, c(input$T1_b1fs, input$T2_b1fs, input$M1_b1fs, input$M2_b1fs), input$rcp_b1fs, NULL, "rcp") })
+output$b1fs_sensitivity_rcm <- renderPlot({ make_b1_plot("b1fs", b1fs_c, c(input$T1_b1fs, input$T2_b1fs, input$M1_b1fs, input$M2_b1fs), NULL, input$rcm_b1fs, "rcm") })
+
+output$b1pa_sensitivity_rcp <- renderPlot({ make_b1_plot("b1pa", b1pa_c, c(input$T1_b1pa, input$T2_b1pa, input$M1_b1pa, input$M2_b1pa), input$rcp_b1pa, NULL, "rcp") })
+output$b1pa_sensitivity_rcm <- renderPlot({ make_b1_plot("b1pa", b1pa_c, c(input$T1_b1pa, input$T2_b1pa, input$M1_b1pa, input$M2_b1pa), NULL, input$rcm_b1pa, "rcm") })
+
+output$b1qp_sensitivity_rcp <- renderPlot({ make_b1_plot("b1qp", b1qp_c, c(input$T1_b1qp, input$T2_b1qp, input$M1_b1qp, input$M2_b1qp), input$rcp_b1qp, NULL, "rcp") })
+output$b1qp_sensitivity_rcm <- renderPlot({ make_b1_plot("b1qp", b1qp_c, c(input$T1_b1qp, input$T2_b1qp, input$M1_b1qp, input$M2_b1qp), NULL, input$rcm_b1qp, "rcm") })
+
+# B2 outputs
+output$b2ac_sensitivity_rcp <- renderPlot({ make_b2_plot("b2ac", b2ac_c, c(input$T1_b2ac, input$T2_b2ac, input$M1_b2ac, input$M2_b2ac), input$rcp_b2ac, NULL, "rcp") })
+output$b2ac_sensitivity_gcm <- renderPlot({ make_b2_plot("b2ac", b2ac_c, c(input$T1_b2ac, input$T2_b2ac, input$M1_b2ac, input$M2_b2ac), NULL, input$gcm_b2ac, "gcm") })
+
+output$b2pa_sensitivity_rcp <- renderPlot({ make_b2_plot("b2pa", b2pa_c, c(input$T1_b2pa, input$T2_b2pa, input$M1_b2pa, input$M2_b2pa), input$rcp_b2pa, NULL, "rcp") })
+output$b2pa_sensitivity_gcm <- renderPlot({ make_b2_plot("b2pa", b2pa_c, c(input$T1_b2pa, input$T2_b2pa, input$M1_b2pa, input$M2_b2pa), NULL, input$gcm_b2pa, "gcm") })
+
+output$b2qp_sensitivity_rcp <- renderPlot({ make_b2_plot("b2qp", b2qp_c, c(input$T1_b2qp, input$T2_b2qp, input$M1_b2qp, input$M2_b2qp), input$rcp_b2qp, NULL, "rcp") })
+output$b2qp_sensitivity_gcm <- renderPlot({ make_b2_plot("b2qp", b2qp_c, c(input$T1_b2qp, input$T2_b2qp, input$M1_b2qp, input$M2_b2qp), NULL, input$gcm_b2qp, "gcm") })
+```

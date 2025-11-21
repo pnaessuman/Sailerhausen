@@ -1,0 +1,10 @@
+Species; Code;T1;T2;M1;M2;Cor. Values
+Acer campestre;B1ac;2,1;19,96;0,01;0,42;0.305
+Acer platanoides;B1apl;0;14,48;0,03;0,47;0.477
+Acer pseudoplatanus;B1aps;0;14,23;0,03;0,48;0.534
+Fagus sylvatica;B1fs;8,5;10,7;0,03;0,3;0.072
+Prunus avium;B1pa;0;9;0,03;0,38;0.422
+Quercus petraea;B1qp;2,9;15,55;0,03;0,4;0.332
+Acer campestre;B2ac;3,7;18,19;0,01;0,38;0.352
+Prunus avium;B2pa;0;9;0,03;0,39;0.440
+Quercus petraea;B2qp;3,6;18,8;0,03;0,43;0.519
