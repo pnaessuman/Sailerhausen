@@ -23,8 +23,8 @@ b2qp <- read.rwl("Data/b2qp.rwl")
 # Load climate data
 climate_b1 <- read_csv2("Data/B1_Sailerhausen.csv")
 climate_b2 <- read_csv2("Data/B2_Sailerhausen.csv")
-cordex_b1 <- read_csv2("Data/cordex_b1_padded.csv")
-cordex_b2 <- read_csv2("Data/cordex_b2_padded.csv")
+cordex_b1 <- read_csv2("Data/lfu_codex_esemble_monthly_b1.csv")
+cordex_b2 <- read_csv2("Data/lfu_codex_esemble_monthly_b2.csv")
 
 # Detrend tree ring data
 b1ac_d <- detrend(b1ac, method = "Spline", nyrs = 32)
