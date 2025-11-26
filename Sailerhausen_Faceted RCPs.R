@@ -33,7 +33,6 @@ b1aps_d <- detrend(b1aps, method = "Spline", nyrs = 32)
 b1fs_d <- detrend(b1fs, method = "Spline", nyrs = 32)
 b1pa_d <- detrend(b1pa, method = "Spline", nyrs = 32)
 b1qp_d <- detrend(b1qp, method = "Spline", nyrs = 32)
-
 b2ac_d <- detrend(b2ac, method = "Spline", nyrs = 32)
 b2pa_d <- detrend(b2pa, method = "Spline", nyrs = 32)
 b2qp_d <- detrend(b2qp, method = "Spline", nyrs = 32)
