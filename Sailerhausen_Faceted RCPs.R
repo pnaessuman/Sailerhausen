@@ -278,6 +278,11 @@ cat("\n=== Displaying Faceted Plots ===\n")
 print(b1_faceted_plot)
 print(b2_faceted_plot)
 
+
+
+
+
+
 # 10. OPTIONAL: SAVE FACETED PLOTS TO FILES
 save_faceted_plots <- function(output_dir = "plots") {
   if (!dir.exists(output_dir)) {
