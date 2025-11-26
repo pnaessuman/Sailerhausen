@@ -115,17 +115,17 @@ generate_projection <- function(params, cordex_data, phi = 50) {
 cat("Estimating parameters for all species...\n")
 
 # B1 species
-b1ac_params <- estimate_params(b1ac_c, climate_b1, .iter = 20)
-b1apl_params <- estimate_params(b1apl_c, climate_b1, .iter = 20)
-b1aps_params <- estimate_params(b1aps_c, climate_b1, .iter = 20)
-b1fs_params <- estimate_params(b1fs_c, climate_b1, .iter = 20)
-b1pa_params <- estimate_params(b1pa_c, climate_b1, .iter = 20)
-b1qp_params <- estimate_params(b1qp_c, climate_b1, .iter = 20)
+b1ac_params <- estimate_params(b1ac_c, climate_b1, .iter = 200)
+b1apl_params <- estimate_params(b1apl_c, climate_b1, .iter = 200)
+b1aps_params <- estimate_params(b1aps_c, climate_b1, .iter = 200)
+b1fs_params <- estimate_params(b1fs_c, climate_b1, .iter = 200)
+b1pa_params <- estimate_params(b1pa_c, climate_b1, .iter = 200)
+b1qp_params <- estimate_params(b1qp_c, climate_b1, .iter = 200)
 
 # B2 species
-b2ac_params <- estimate_params(b2ac_c, climate_b2, .iter = 20)
-b2pa_params <- estimate_params(b2pa_c, climate_b2, .iter = 20)
-b2qp_params <- estimate_params(b2qp_c, climate_b2, .iter = 20)
+b2ac_params <- estimate_params(b2ac_c, climate_b2, .iter = 200)
+b2pa_params <- estimate_params(b2pa_c, climate_b2, .iter = 200)
+b2qp_params <- estimate_params(b2qp_c, climate_b2, .iter = 200)
 
 
 # 5. GENERATE ALL PROJECTIONS
