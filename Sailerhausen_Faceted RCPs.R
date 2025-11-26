@@ -23,8 +23,8 @@ b2qp <- read.rwl("Data/b2qp.rwl")
 # Load climate data
 climate_b1 <- read_csv2("Data/B1_Sailerhausen.csv")
 climate_b2 <- read_csv2("Data/B2_Sailerhausen.csv")
-cordex_b1 <- read_csv2("Data/cordex_b1_padded.csv")
-cordex_b2 <- read_csv2("Data/cordex_b2_padded.csv")
+cordex_b1 <- read_csv2("Data/lfu_codex_esemble_monthly_b1.csv")
+cordex_b2 <- read_csv2("Data/lfu_codex_esemble_monthly_b2.csv")
 
 # Detrend tree ring data
 b1ac_d <- detrend(b1ac, method = "Spline", nyrs = 32)
@@ -49,7 +49,7 @@ b2pa_c <- chron(b2pa_d)
 b2qp_c <- chron(b2qp_d)
 
 # 2. PARAMETER ESTIMATION FUNCTION
-estimate_params <- function(chronology, climate_data, phi = 50) {
+estimate_params <- function(chronology, climate_data, phi = 50, .iter = 200) {
   input_historic <- make_vsinput_historic(chronology, climate_data)
   
   params <- vs_params(
@@ -58,7 +58,8 @@ estimate_params <- function(chronology, climate_data, phi = 50) {
     input_historic$prec,
     input_historic$syear,
     input_historic$eyear,
-    .phi = phi
+    .phi = phi,
+    iter = .iter
   )
   
   return(params)
@@ -99,17 +100,17 @@ generate_projection <- function(params, cordex_data, rcp_scenario, phi = 50) {
 cat("Estimating parameters for all species...\n")
 
 # B1 species
-b1ac_params <- estimate_params(b1ac_c, climate_b1)
-b1apl_params <- estimate_params(b1apl_c, climate_b1)
-b1aps_params <- estimate_params(b1aps_c, climate_b1)
-b1fs_params <- estimate_params(b1fs_c, climate_b1)
-b1pa_params <- estimate_params(b1pa_c, climate_b1)
-b1qp_params <- estimate_params(b1qp_c, climate_b1)
+b1ac_params <- estimate_params(b1ac_c, climate_b1, .iter = 20)
+b1apl_params <- estimate_params(b1apl_c, climate_b1, .iter = 20)
+b1aps_params <- estimate_params(b1aps_c, climate_b1, .iter = 20)
+b1fs_params <- estimate_params(b1fs_c, climate_b1, .iter = 20)
+b1pa_params <- estimate_params(b1pa_c, climate_b1, .iter = 20)
+b1qp_params <- estimate_params(b1qp_c, climate_b1, .iter = 20)
 
 # B2 species
-b2ac_params <- estimate_params(b2ac_c, climate_b2)
-b2pa_params <- estimate_params(b2pa_c, climate_b2)
-b2qp_params <- estimate_params(b2qp_c, climate_b2)
+b2ac_params <- estimate_params(b2ac_c, climate_b2, .iter = 20)
+b2pa_params <- estimate_params(b2pa_c, climate_b2, .iter = 20)
+b2qp_params <- estimate_params(b2qp_c, climate_b2, .iter = 20)
 
 
 # 5. GENERATE ALL PROJECTIONS
