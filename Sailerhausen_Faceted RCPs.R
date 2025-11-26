@@ -23,8 +23,8 @@ b2qp <- read.rwl("Data/b2qp.rwl")
 # Load climate data
 climate_b1 <- read_csv2("Data/B1_Sailerhausen.csv")
 climate_b2 <- read_csv2("Data/B2_Sailerhausen.csv")
-cordex_b1 <- read_csv2("Data/cordex_b1_padded.csv")
-cordex_b2 <- read_csv2("Data/cordex_b2_padded.csv")
+cordex_b1 <- read_csv2("Data/lfu_cordex_ensemble_monthly_b1.csv")
+cordex_b2 <- read_csv2("Data/lfu_cordex_ensemble_monthly_b2.csv")
 
 # Detrend tree ring data
 b1ac_d <- detrend(b1ac, method = "Spline", nyrs = 32)
@@ -67,33 +67,47 @@ estimate_params <- function(chronology, climate_data, phi = 50, .iter = 200) {
 }
 
 # 3. PROJECTION FUNCTION
-generate_projection <- function(params, cordex_data, rcp_scenario, phi = 50) {
-  rcp_input <- cordex_data %>% 
-    filter(year > 2021, rcp == rcp_scenario) %>% 
-    group_by(year, month) %>% 
-    summarise(
-      tmean = mean(tmean),
-      prec = mean(prec),
-      .groups = "drop"
-    ) %>% 
-    ungroup() %>% 
-    make_vsinput_transient()
+generate_projection <- function(params, cordex_data, phi = 50) {
   
-  projection <- vs_run_forward(
-    params,
-    rcp_input$tmean,
-    rcp_input$prec,
-    rcp_input$syear,
-    rcp_input$eyear,
-    .phi = phi
-  )
+  complete_years <- function(x) {
+    cy <- x |> 
+      group_by(year) |> 
+      summarise(n_months = length(month)) |> 
+      filter(n_months == 12) |> 
+      _$year
+    
+    x |> filter(year %in% cy)
+  }
   
-  result <- data.frame(
-    year = projection[, 1],
-    projection = projection[, 2]
-  )
+  do_project <- function(x) {
+    vs_run_forward(
+      params,
+      x$temp,
+      x$prec,
+      x$syear,
+      x$eyear,
+      .phi = phi
+    )
+  }
   
-  return(result)
+  do_smooth <- function(x) {
+    x$trw_smooth <- lowess(x$trw)$y
+    return(x)
+  }
+  
+  projection <- cordex_data %>% 
+    filter(year > 2021) %>% 
+    group_by(rcp, gcm, rcm) |> 
+    nest() |> 
+    mutate(
+      data = purrr::map(data, complete_years),
+      input = purrr::map(data, make_vsinput_transient),
+      projection = purrr::map(input, do_project),
+      projection = purrr::map(projection, do_smooth)
+      ) |> 
+    unnest("projection")
+  
+  return(projection)
 }
 
 # 4. ESTIMATE PARAMETERS FOR ALL SPECIES
@@ -116,14 +130,13 @@ b2qp_params <- estimate_params(b2qp_c, climate_b2, .iter = 20)
 
 # 5. GENERATE ALL PROJECTIONS
 generate_all_projections <- function(species_params_list, cordex_data, 
-                                     species_names, rcp_scenario) {
+                                     species_names) {
   all_projections <- list()
   
   for (i in seq_along(species_params_list)) {
     projection <- generate_projection(
       species_params_list[[i]], 
-      cordex_data, 
-      rcp_scenario
+      cordex_data
     )
     projection$species <- species_names[i]
     all_projections[[i]] <- projection
@@ -133,47 +146,54 @@ generate_all_projections <- function(species_params_list, cordex_data,
   return(combined)
 }
 
+
+# 6a. PLOTTING ALL IN ONE
+
+plot_all_in_one <- function(cordex_data, 
+                            species_params_list, 
+                            species_names) {
+  
+  projections <- generate_all_projections(
+    species_params_list,
+    cordex_data,
+    species_names
+  )
+  
+  projections |> 
+    group_by(species, rcp, year) |> 
+    summarise(trw_mean = mean(trw_smooth),
+              trw_sd = sd(trw_smooth),
+              trw_ci_lower = trw_mean - trw_sd,
+              trw_ci_upper = trw_mean + trw_sd) |> 
+    ggplot(aes(x = year, y = trw_mean)) +
+    geom_ribbon(aes(ymin = trw_ci_lower,
+                    ymax = trw_ci_upper,
+                    fill = species),
+                alpha = 0.1) +
+    geom_line(aes(colour = species)) +
+    facet_wrap(. ~ rcp)
+}
+
+# NOT IN RIGHT POSITION HERE:
+
+plot_all_in_one(cordex_b1, species_params_list_b1,
+                b1_species_names)
+
+plot_all_in_one(cordex_b2, species_params_list_b2,
+                b2_species_names)
+
+
+
 # 6. PLOTTING FUNCTIONS
 # Function to plot each RCP separately (original version)
 plot_site_rcp_separate <- function(site_name, cordex_data, 
                                    species_params_list, 
-                                   species_names, rcp_scenarios) {
+                                   species_names) {
   
   plot_list <- list()
   
-  for (rcp in rcp_scenarios) {
-    cat(paste("Generating projection for", site_name, "-", rcp, "\n"))
-    
-    projections <- generate_all_projections(
-      species_params_list,
-      cordex_data,
-      species_names,
-      rcp
-    )
-    
-    p <- ggplot(projections, aes(x = year, y = projection, color = species)) +
-      geom_line(linewidth = 0.8, alpha = 0.7) +
-      geom_smooth(se = FALSE, linewidth = 1.2, method = "loess") +
-      labs(
-        title = paste(site_name, "- Future Projections"),
-        subtitle = paste("RCP Scenario:", rcp),
-        x = "Year",
-        y = "Ring Width Index",
-        color = "Species"
-      ) +
-      theme_minimal() +
-      theme(
-        plot.title = element_text(size = 14, face = "bold"),
-        plot.subtitle = element_text(size = 12),
-        legend.position = "bottom",
-        legend.title = element_text(face = "bold")
-      ) +
-      scale_color_brewer(palette = "Set2")
-    
-    plot_list[[rcp]] <- p
-  }
   
-  return(plot_list)
+
 }
 
 # Function to plot all RCPs as facets with species in each panel
