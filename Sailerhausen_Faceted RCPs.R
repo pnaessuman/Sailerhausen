@@ -33,7 +33,6 @@ b1aps_d <- detrend(b1aps, method = "Spline", nyrs = 32)
 b1fs_d <- detrend(b1fs, method = "Spline", nyrs = 32)
 b1pa_d <- detrend(b1pa, method = "Spline", nyrs = 32)
 b1qp_d <- detrend(b1qp, method = "Spline", nyrs = 32)
-
 b2ac_d <- detrend(b2ac, method = "Spline", nyrs = 32)
 b2pa_d <- detrend(b2pa, method = "Spline", nyrs = 32)
 b2qp_d <- detrend(b2qp, method = "Spline", nyrs = 32)
@@ -112,8 +111,6 @@ generate_projection <- function(params, cordex_data, phi = 50) {
 
 # 4. ESTIMATE PARAMETERS FOR ALL SPECIES
 
-cat("Estimating parameters for all species...\n")
-
 # B1 species
 b1ac_params <- estimate_params(b1ac_c, climate_b1, .iter = 200)
 b1apl_params <- estimate_params(b1apl_c, climate_b1, .iter = 200)
@@ -129,23 +126,12 @@ b2qp_params <- estimate_params(b2qp_c, climate_b2, .iter = 200)
 
 
 # 5. GENERATE ALL PROJECTIONS
-generate_all_projections <- function(species_params_list, cordex_data, 
-                                     species_names) {
-  all_projections <- list()
-  
-  for (i in seq_along(species_params_list)) {
-    projection <- generate_projection(
-      species_params_list[[i]], 
-      cordex_data
-    )
-    projection$species <- species_names[i]
-    all_projections[[i]] <- projection
-  }
-  
-  combined <- bind_rows(all_projections)
-  return(combined)
+generate_all_projections <- function(species_params_list, cordex_data, species_names) {
+  tibble(params = species_params_list, species = species_names) |> 
+    mutate(projection = purrr::map(params, ~generate_projection(.x, cordex_data))) |> 
+    unnest(projection) |> 
+    select(-params)
 }
-
 
 # 6a. PLOTTING ALL IN ONE
 
@@ -173,16 +159,6 @@ plot_all_in_one <- function(cordex_data,
     geom_line(aes(colour = species)) +
     facet_wrap(. ~ rcp)
 }
-
-# NOT IN RIGHT POSITION HERE:
-
-plot_all_in_one(cordex_b1, species_params_list_b1,
-                b1_species_names)
-
-plot_all_in_one(cordex_b2, species_params_list_b2,
-                b2_species_names)
-
-
 
 # 6. PLOTTING FUNCTIONS
 # Function to plot each RCP separately (original version)
@@ -260,20 +236,20 @@ plot_site_all_rcp_faceted <- function(site_name, cordex_data, species_params_lis
 rcp_scenarios <- c("RCP_26", "RCP_45", "RCP_85")
 
 # Site B1
-cat("\n=== Processing Site B1 ===\n")
 b1_species_params <- list(b1ac_params, b1apl_params, b1aps_params, 
                           b1fs_params, b1pa_params, b1qp_params)
 b1_species_names <- c("Acer campestre", "Acer platanoides", "Acer pseudoplatanus",
                       "Fagus sylvatica", "Prunus avium", "Quercus petraea")
 
 # Site B2
-cat("\n=== Processing Site B2 ===\n")
 b2_species_params <- list(b2ac_params, b2pa_params, b2qp_params)
 b2_species_names <- c("Acer campestre", "Prunus avium", "Quercus petraea")
 
-# 8. CREATE FACETED PLOTS (ALL RCPs AS PANELS IN ONE GRAPH PER SITE)
-cat("\n=== Creating Faceted Plots ===\n")
+# 8. CALL plot_all_in_one
+plot_all_in_one(cordex_b1, b1_species_params, b1_species_names)
+plot_all_in_one(cordex_b2, b2_species_params, b2_species_names)
 
+# 8. CREATE FACETED PLOTS (ALL RCPs AS PANELS IN ONE GRAPH PER SITE)
 # Create faceted plot for B1 (RCPs as panels, species as colored lines in each panel)
 b1_faceted_plot <- plot_site_all_rcp_faceted(
   "Site B1 (Sailershausen)",
@@ -293,11 +269,62 @@ b2_faceted_plot <- plot_site_all_rcp_faceted(
 )
 
 # 9. DISPLAY FACETED PLOTS
-cat("\n=== Displaying Faceted Plots ===\n")
-
 # Display the two main plots
 print(b1_faceted_plot)
 print(b2_faceted_plot)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # 10. OPTIONAL: SAVE FACETED PLOTS TO FILES
 save_faceted_plots <- function(output_dir = "plots") {
